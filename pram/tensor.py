@@ -1,7 +1,7 @@
 """Parameterised Tensor"""
 
 import logging
-from typing import Type, TypeVar
+from typing import List, Tuple, Type, TypeVar
 
 import torch
 from torch import Tensor
@@ -18,14 +18,14 @@ class GaussianStrategy(BuildStrategy[Tensor]):
 
     mean: float
     std: float
-    size: tuple[int, int]
+    size: Tuple[int, int]
 
     def build(self) -> Tensor:
         """Build an instance of Tensor"""
         return torch.normal(**self.model_dump())
 
 
-default_strategies: list[Type[BuildStrategy[Tensor]]] = [GaussianStrategy]
+default_strategies: List[Type[BuildStrategy[Tensor]]] = [GaussianStrategy]
 
 
 ParameterisedTensor = parameterise(Tensor, default_strategies)

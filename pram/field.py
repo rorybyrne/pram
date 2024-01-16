@@ -1,8 +1,11 @@
+from __future__ import annotations
+
 import logging
 from abc import abstractmethod
-from typing import Annotated, Any, Generic, Type, TypeVar, Union
+from typing import Any, Generic, List, Type, TypeVar, Union
 
 from pydantic import BaseModel, BeforeValidator, ValidationInfo
+from typing_extensions import Annotated
 
 from pram.exception import NoSuitableStrategy
 
@@ -17,9 +20,7 @@ class BuildStrategy(BaseModel, Generic[T]):
     @classmethod
     def matches(cls, parameters: dict) -> bool:
         """Check whether the given parameters contain the keys needed for this strategy."""
-        return all(
-            k in parameters for k, v in cls.model_fields.items() if v.is_required()
-        )
+        return all(k in parameters for k, v in cls.model_fields.items() if v.is_required())
 
     @abstractmethod
     def build(self) -> T:
@@ -33,7 +34,7 @@ class Builder(Generic[T]):
     def __init__(
         self,
         of_type: Type[T],
-        strategies: list[Type[BuildStrategy[T]]],
+        strategies: List[Type[BuildStrategy[T]]],
     ) -> None:
         self._type = of_type
         self._strategies = strategies
@@ -60,14 +61,12 @@ class Builder(Generic[T]):
                 if strategy.matches(_params):
                     return strategy(**_params).build()  # extra=info.data["params"])
 
-            raise NoSuitableStrategy(
-                f"No suitable strategy found for keys {', '.join(params.keys())}"
-            )
+            raise NoSuitableStrategy(f"No suitable strategy found for keys {', '.join(params.keys())}")
 
         raise ValueError("???")
 
 
-def parameterise(type_: Type[T], strategies: list[Type[BuildStrategy[T]]]):
+def parameterise(type_: Type[T], strategies: List[Type[BuildStrategy[T]]]):
     """Annotates a Type with a set of BuildStrategys."""
     return Annotated[
         type_,
