@@ -2,12 +2,14 @@ from __future__ import annotations
 
 import logging
 from abc import abstractmethod
+from copy import deepcopy
+from pprint import pprint
 from typing import Any, Generic, List, Type, TypeVar, Union
 
 from pydantic import BaseModel, BeforeValidator, ValidationInfo
 from typing_extensions import Annotated
 
-from pram.exception import NoSuitableStrategy
+from pram.exception import NoSuitableStrategy, StrategyNoMatch
 
 logger = logging.getLogger(__name__)
 
@@ -18,9 +20,8 @@ class BuildStrategy(BaseModel, Generic[T]):
     """Use a subset of parameters to build an object."""
 
     @classmethod
-    def matches(cls, parameters: dict) -> bool:
-        """Check whether the given parameters contain the keys needed for this strategy."""
-        return all(k in parameters for k, v in cls.model_fields.items() if v.is_required())
+    def parse(cls, parameters: Any, with_context: dict[str, Any]) -> dict[str, Any]:
+        ...
 
     @abstractmethod
     def build(self) -> T:
@@ -48,27 +49,23 @@ class Builder(Generic[T]):
             # incase the user wants to build a model directly
             return params
 
-        if isinstance(params, dict):
-            for strategy in self._strategies:
-                _params = params.copy()
+        assert info.context is not None, "Must pass context. Library bug."
 
-                # Try to populate missing fields, from siblings
-                for name in strategy.model_fields:
-                    if name not in _params:
-                        # Find the value elsewhere in params
-                        _params[name] = info.data["params"][name]
+        for strategy in self._strategies:
+            _params = deepcopy(params)
+            try:
+                # info.data contains the other processed local fields
+                _params = strategy.parse(_params, with_context={"local": info.data, "global": info.context})
+            except StrategyNoMatch:
+                continue
 
-                if strategy.matches(_params):
-                    return strategy(**_params).build()  # extra=info.data["params"])
+            return strategy(**_params).build()
 
-            raise NoSuitableStrategy(f"No suitable strategy found for keys {', '.join(params.keys())}")
-
-        raise ValueError("???")
+        raise NoSuitableStrategy(f"No suitable strategy found for keys {', '.join(params.keys())}")
 
 
 def parameterise(type_: Type[T], strategies: List[Type[BuildStrategy[T]]]):
     """Annotates a Type with a set of BuildStrategys."""
     return Annotated[
-        type_,
-        BeforeValidator(func=Builder(of_type=type_, strategies=strategies)),
-    ]
+        type_, BeforeValidator(func=Builder(of_type=type_, strategies=strategies))
+    ]  # , BeforeValidator(func=inject_params)
