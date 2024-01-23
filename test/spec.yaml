@@ -1,0 +1,14 @@
+network:
+  populations:
+    - w_in:
+        mean: 0.0
+        std: 0.01
+        size: [3, 300]
+      w_rec:
+        mean: 0.0
+        std: 0.01
+        size: [300, 300]
+    - w_in:
+        mean: 0.0
+        std: 0.001
+        size: [300, 2]
